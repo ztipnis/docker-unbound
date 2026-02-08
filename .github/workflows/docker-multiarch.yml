@@ -4,9 +4,12 @@ on:
   push:
     branches:
       - 'main'
-  pull_request_target:
-    branches:
-      - main 
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
   workflow_dispatch:
 
 env:
@@ -16,6 +19,7 @@ env:
 jobs:
   versions:
     name: Resolve upstream versions
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     outputs:
       lc: ${{ steps.vers.outputs.lc }}
