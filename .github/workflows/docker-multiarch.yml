@@ -161,6 +161,9 @@ jobs:
       - build
       - versions
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download digests
         uses: actions/download-artifact@v4
         with:
@@ -215,14 +218,7 @@ jobs:
             --tag ${{ env.GHCR_IMAGE }}:latest \
             --tag ${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }} \
             ${{ env.REGISTRY_IMAGE }}:${{ steps.meta.outputs.version }}
-  update-build-description:
-    runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/main' && 'push-main' || 'push-branch' }}
-    needs:
-      - merge
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+
       - name: Update repo description
         uses: peter-evans/dockerhub-description@e98e4d1628a5f3be2be7c231e50981aee98723ae # v4.0.0
         with:
