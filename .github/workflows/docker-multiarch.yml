@@ -145,18 +145,49 @@ jobs:
           mkdir -p ${{ runner.temp }}/digests/dockerhub
           mkdir -p ${{ runner.temp }}/digests/ghcr
           
-          # When SBOM/Provenance attestations are enabled, they are pushed as separate manifests
-          # The image digest from the build output is the correct digest to use for creating
-          # the multi-arch manifest list, even though attestation manifests have different digests
-          digest="${{ steps.build.outputs.digest }}"
+          # With SBOM/Provenance attestations, we need to discover the actual manifest digest
+          # from the registry. We do this by inspecting what was just pushed using the
+          # canonical repository reference and the build digest as a starting point.
           
-          # Store the digest for both registries
-          # Note: With attestations enabled, the digest represents the image manifest,
-          # not the attestation manifests which are stored separately and linked to this digest
-          touch "${{ runner.temp }}/digests/dockerhub/${digest#sha256:}"
-          touch "${{ runner.temp }}/digests/ghcr/${digest#sha256:}"
+          build_digest="${{ steps.build.outputs.digest }}"
+          echo "Build output digest: ${build_digest}"
           
-          echo "Stored image digest for manifest creation: ${digest}"
+          # Function to discover actual pushed digest from registry
+          discover_digest() {
+            local registry_image="$1"
+            local max_attempts=5
+            local attempt=1
+            
+            while [ $attempt -le $max_attempts ]; do
+              # Try to inspect the image using the build digest
+              if digest=$(docker buildx imagetools inspect "${registry_image}@${build_digest}" --format '{{.Manifest.Digest}}' 2>/dev/null); then
+                echo "Successfully discovered digest for ${registry_image}: ${digest}"
+                echo "$digest"
+                return 0
+              fi
+              
+              if [ $attempt -lt $max_attempts ]; then
+                echo "Attempt ${attempt}/${max_attempts} failed, retrying in 10 seconds..."
+                sleep 10
+              fi
+              attempt=$((attempt + 1))
+            done
+            
+            # If inspection fails, fallback to using the build digest
+            echo "Could not inspect registry, using build digest: ${build_digest}"
+            echo "${build_digest}"
+            return 0
+          }
+          
+          # Discover digests from both registries
+          dockerhub_digest=$(discover_digest "${{ env.REGISTRY_IMAGE }}")
+          ghcr_digest=$(discover_digest "${{ env.GHCR_IMAGE }}")
+          
+          # Store the discovered digests
+          touch "${{ runner.temp }}/digests/dockerhub/${dockerhub_digest#sha256:}"
+          touch "${{ runner.temp }}/digests/ghcr/${ghcr_digest#sha256:}"
+          
+          echo "Stored digests for merge step"
 
       - name: Upload Docker Hub digest
         uses: actions/upload-artifact@v4
