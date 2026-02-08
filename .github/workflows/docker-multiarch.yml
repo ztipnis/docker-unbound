@@ -117,8 +117,8 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push by digest to both registries
-        id: build
+      - name: Build and push by digest to Docker Hub
+        id: build-dockerhub
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -130,17 +130,34 @@ jobs:
             NGTCP2_VERSION=${{ needs.versions.outputs.ngtcp2 }}
             NGHTTP2_VERSION=${{ needs.versions.outputs.nghttp2 }}
             UNBOUND_VERSION=${{ needs.versions.outputs.unbound }}
-          outputs: |
-            type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
-            type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push by digest to GHCR
+        id: build-ghcr
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            LC_VERSION=${{ needs.versions.outputs.lc }}
+            NGHTTP3_VERSION=${{ needs.versions.outputs.nghttp3 }}
+            NGTCP2_VERSION=${{ needs.versions.outputs.ngtcp2 }}
+            NGHTTP2_VERSION=${{ needs.versions.outputs.nghttp2 }}
+            UNBOUND_VERSION=${{ needs.versions.outputs.unbound }}
+          outputs: type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha
 
       - name: Export digests
         run: |
           mkdir -p ${{ runner.temp }}/digests/dockerhub
           mkdir -p ${{ runner.temp }}/digests/ghcr
-          digest="${{ steps.build.outputs.digest }}"
-          touch "${{ runner.temp }}/digests/dockerhub/${digest#sha256:}"
-          touch "${{ runner.temp }}/digests/ghcr/${digest#sha256:}"
+          digest_dockerhub="${{ steps.build-dockerhub.outputs.digest }}"
+          digest_ghcr="${{ steps.build-ghcr.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/dockerhub/${digest_dockerhub#sha256:}"
+          touch "${{ runner.temp }}/digests/ghcr/${digest_ghcr#sha256:}"
 
       - name: Upload Docker Hub digest
         uses: actions/upload-artifact@v4
