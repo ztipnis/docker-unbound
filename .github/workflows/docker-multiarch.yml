@@ -2,6 +2,12 @@ name: Docker Multi-Arch Build
 
 on:
   push:
+    branches:
+      - 'main'
+  pull_request_target:
+    branches:
+      - main 
+  workflow_dispatch:
 
 env:
   REGISTRY_IMAGE: ${{ vars.DOCKERHUB_USERNAME }}/unbound
@@ -101,7 +107,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          password: ${{ secrets.DOCKERHUB_BUILD_TOKEN }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
