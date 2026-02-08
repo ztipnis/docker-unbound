@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1
 
-# ARG LC_VERSION=1.67.0
-# ARG NGHTTP3_VERSION=1.15.0
-# ARG NGTCP2_VERSION=1.20.0
-# ARG NGHTTP2_VERSION=1.68.0
-# ARG UNBOUND_VERSION=1.24.2
+ARG LC_VERSION=1.67.0
+ARG NGHTTP3_VERSION=1.15.0
+ARG NGTCP2_VERSION=1.20.0
+ARG NGHTTP2_VERSION=1.68.0
+ARG UNBOUND_VERSION=1.24.2
 
 FROM debian:13 AS build-base
 RUN mkdir -p /opt/src /opt/tarballs && \
@@ -21,9 +21,8 @@ WORKDIR /opt/src
 # AWS-LC (BoringSSL-ish)
 # -------------------------
 FROM build-base AS lc-build
-# ARG LC_VERSION
-# ADD https://github.com/aws/aws-lc/archive/refs/tags/v${LC_VERSION}.tar.gz /opt/tarballs/
-ADD https://github.com/aws/aws-lc/archive/refs/tags/v1.67.0.tar.gz /opt/tarballs/
+ARG LC_VERSION
+ADD https://github.com/aws/aws-lc/archive/refs/tags/v${LC_VERSION}.tar.gz /opt/tarballs/
 RUN tar xvf /opt/tarballs/v*.tar.gz -C /opt/src --strip-components=1
 RUN mkdir -p build /opt/lc && \
     cd build && \
@@ -37,9 +36,8 @@ RUN mkdir -p build /opt/lc && \
 # nghttp3 (lib-only)
 # -------------------------
 FROM build-base AS nghttp3-build
-# ARG NGHTTP3_VERSION
-# ADD https://github.com/ngtcp2/nghttp3/releases/download/v${NGHTTP3_VERSION}/nghttp3-${NGHTTP3_VERSION}.tar.xz /opt/tarballs/
-ADD https://github.com/ngtcp2/nghttp3/releases/download/v1.15.0/nghttp3-1.15.0.tar.xz /opt/tarballs/
+ARG NGHTTP3_VERSION
+ADD https://github.com/ngtcp2/nghttp3/releases/download/v${NGHTTP3_VERSION}/nghttp3-${NGHTTP3_VERSION}.tar.xz /opt/tarballs/
 RUN tar xvf /opt/tarballs/nghttp3-*.tar.xz -C /opt/src --strip-components=1
 RUN autoreconf -i && \
     mkdir -p /opt/nghttp3 && \
@@ -51,9 +49,8 @@ RUN autoreconf -i && \
 # ngtcp2 built against AWS-LC (optional; keep if you need it elsewhere)
 # -------------------------
 FROM build-base AS ngtcp2-lc-build
-# ARG NGTCP2_VERSION
-# ADD https://github.com/ngtcp2/ngtcp2/releases/download/v${NGTCP2_VERSION}/ngtcp2-${NGTCP2_VERSION}.tar.xz /opt/tarballs/
-ADD https://github.com/ngtcp2/ngtcp2/releases/download/v1.20.0/ngtcp2-1.20.0.tar.xz /opt/tarballs/
+ARG NGTCP2_VERSION
+ADD https://github.com/ngtcp2/ngtcp2/releases/download/v${NGTCP2_VERSION}/ngtcp2-${NGTCP2_VERSION}.tar.xz /opt/tarballs/
 RUN tar xvf /opt/tarballs/ngtcp2-*.tar.xz -C /opt/src --strip-components=1
 COPY --from=lc-build /opt/lc /opt/lc
 COPY --from=nghttp3-build /opt/nghttp3 /opt/nghttp3
@@ -73,13 +70,12 @@ RUN autoreconf -i && \
 # ngtcp2 built against OpenSSL (this is the one Unbound must use for DoQ)
 # -------------------------
 FROM build-base AS ngtcp2-ossl-build
-# ARG NGTCP2_VERSION
 RUN apt update && \
     DEBIAN_FRONTEND=noninteractive apt install -y \
       libssl-dev \
     && apt clean && rm -rf /var/lib/apt/lists/*
-# ADD https://github.com/ngtcp2/ngtcp2/releases/download/v${NGTCP2_VERSION}/ngtcp2-${NGTCP2_VERSION}.tar.xz /opt/tarballs/
-ADD https://github.com/ngtcp2/ngtcp2/releases/download/v1.20.0/ngtcp2-1.20.0.tar.xz /opt/tarballs/
+ARG NGTCP2_VERSION
+ADD https://github.com/ngtcp2/ngtcp2/releases/download/v${NGTCP2_VERSION}/ngtcp2-${NGTCP2_VERSION}.tar.xz /opt/tarballs/
 RUN tar xvf /opt/tarballs/ngtcp2-*.tar.xz -C /opt/src --strip-components=1
 COPY --from=nghttp3-build /opt/nghttp3 /opt/nghttp3
 ENV LDFLAGS="-Wl,--strip-all" PKG_CONFIG="pkg-config"
@@ -97,13 +93,12 @@ RUN autoreconf -i && \
 # nghttp2 (for Unbound's DoH2; leave as you prefer)
 # -------------------------
 FROM build-base AS nghttp2-build
-# ARG NGHTTP2_VERSION
 RUN apt update && \
     DEBIAN_FRONTEND=noninteractive apt install -y \
       libbpf-dev \
     && apt clean && rm -rf /var/lib/apt/lists/*
-# ADD https://github.com/nghttp2/nghttp2/releases/download/v${NGHTTP2_VERSION}/nghttp2-${NGHTTP2_VERSION}.tar.xz /opt/tarballs/
-ADD https://github.com/nghttp2/nghttp2/releases/download/v1.68.0/nghttp2-1.68.0.tar.xz /opt/tarballs/
+ARG NGHTTP2_VERSION
+ADD https://github.com/nghttp2/nghttp2/releases/download/v${NGHTTP2_VERSION}/nghttp2-${NGHTTP2_VERSION}.tar.xz /opt/tarballs/
 RUN tar xvf /opt/tarballs/nghttp2-*.tar.xz -C /opt/src --strip-components=1
 COPY --from=lc-build /opt/lc /opt/lc
 COPY --from=nghttp3-build /opt/nghttp3 /opt/nghttp3
@@ -118,7 +113,6 @@ RUN mkdir -p /opt/nghttp2 && \
 # Unbound built against OpenSSL + ngtcp2(OpenSSL backend)
 # -------------------------
 FROM build-base AS unbound-build
-# ARG UNBOUND_VERSION
 RUN apt update && \
     DEBIAN_FRONTEND=noninteractive apt install -y \
       libexpat1-dev \
@@ -129,8 +123,8 @@ RUN apt update && \
       zlib1g-dev\
       libzstd-dev\
     && apt clean && rm -rf /var/lib/apt/lists/*
-# ADD https://nlnetlabs.nl/downloads/unbound/unbound-${UNBOUND_VERSION}.tar.gz /opt/tarballs/
-ADD https://nlnetlabs.nl/downloads/unbound/unbound-1.24.2.tar.gz /opt/tarballs/
+ARG UNBOUND_VERSION
+ADD https://nlnetlabs.nl/downloads/unbound/unbound-${UNBOUND_VERSION}.tar.gz /opt/tarballs/
 COPY --from=ngtcp2-ossl-build /opt/ngtcp2-ossl /opt/ngtcp2-ossl
 COPY --from=nghttp2-build /opt/nghttp2 /opt/nghttp2
 RUN tar xvf /opt/tarballs/unbound-*.tar.gz -C /opt/src --strip-components=1
