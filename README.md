@@ -48,4 +48,13 @@ The default configuration is located at `/opt/unbound/etc/unbound/unbound.conf` 
 
 ## License
 
-See [LICENSE](LICENSE) file.
+ztipnis/docker-unbound is licensed via the [MIT License](https://github.com/ztipnis/docker-unbound/blob/main/LICENSE).
+Additional licenses apply: 
+ - [unbound](https://github.com/NLnetLabs/unbound/blob/master/LICENSE)
+ - [aws-lc](https://github.com/aws/aws-lc/blob/main/LICENSE)
+ - [nghttp2](https://github.com/nghttp2/nghttp2/blob/master/COPYING)
+ - [ngtcp2](https://github.com/ngtcp2/ngtcp2/blob/main/COPYING)
+ - [nghttp3](https://github.com/ngtcp2/nghttp3/blob/main/COPYING)
+ - [OpenSSL](https://openssl-library.org/source/license/index.html)
+   
+
