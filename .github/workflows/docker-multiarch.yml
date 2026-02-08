@@ -81,8 +81,6 @@ jobs:
         - platform: linux/arm64
           runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
-    # Use environment for approval control at job level
-    environment: ${{ github.ref == 'refs/heads/main' && 'production-auto' || 'production-manual' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -119,13 +117,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build once and push to both registries by digest
+      - name: Build image (no push)
         id: build
         run: |
-          echo "Building and pushing to registries"
+          echo "Building image for ${{ matrix.platform }}"
           echo "Branch: ${{ github.ref }}"
           
-          # Build and push to both registries in a single build command
+          # Build image and export to local Docker
           docker buildx build \
             --platform ${{ matrix.platform }} \
             --build-arg LC_VERSION=${{ needs.versions.outputs.lc }} \
@@ -135,6 +133,29 @@ jobs:
             --build-arg UNBOUND_VERSION=${{ needs.versions.outputs.unbound }} \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
+            --output type=docker \
+            --tag local-build:${{ matrix.platform }} \
+            .
+          
+          echo "Build completed successfully"
+
+      - name: Push to registries by digest
+        id: push
+        # Use environment for approval control on push step only
+        environment: ${{ github.ref == 'refs/heads/main' && 'push-main' || 'push-branch' }}
+        run: |
+          echo "Pushing to registries"
+          echo "Branch: ${{ github.ref }}"
+          
+          # Re-tag and push to both registries
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            --build-arg LC_VERSION=${{ needs.versions.outputs.lc }} \
+            --build-arg NGHTTP3_VERSION=${{ needs.versions.outputs.nghttp3 }} \
+            --build-arg NGTCP2_VERSION=${{ needs.versions.outputs.ngtcp2 }} \
+            --build-arg NGHTTP2_VERSION=${{ needs.versions.outputs.nghttp2 }} \
+            --build-arg UNBOUND_VERSION=${{ needs.versions.outputs.unbound }} \
+            --cache-from type=gha \
             --output type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true \
             --output type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true \
             --metadata-file /tmp/metadata.json \
@@ -149,7 +170,7 @@ jobs:
         run: |
           mkdir -p ${{ runner.temp }}/digests/dockerhub
           mkdir -p ${{ runner.temp }}/digests/ghcr
-          digest="${{ steps.build.outputs.digest }}"
+          digest="${{ steps.push.outputs.digest }}"
           # Same digest for both registries since it's the same image content
           touch "${{ runner.temp }}/digests/dockerhub/${digest#sha256:}"
           touch "${{ runner.temp }}/digests/ghcr/${digest#sha256:}"
