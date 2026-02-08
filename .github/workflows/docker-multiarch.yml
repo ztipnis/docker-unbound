@@ -116,6 +116,7 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ env.REGISTRY_IMAGE }}
           build-args: |
             LC_VERSION=${{ needs.versions.outputs.lc }}
             NGHTTP3_VERSION=${{ needs.versions.outputs.nghttp3 }}
