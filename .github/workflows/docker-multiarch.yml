@@ -123,7 +123,7 @@ jobs:
           echo "Building image for ${{ matrix.platform }}"
           echo "Branch: ${{ github.ref }}"
           
-          # Build image and export to local Docker
+          # Build image and load to local Docker (no push yet)
           docker buildx build \
             --platform ${{ matrix.platform }} \
             --build-arg LC_VERSION=${{ needs.versions.outputs.lc }} \
@@ -133,8 +133,8 @@ jobs:
             --build-arg UNBOUND_VERSION=${{ needs.versions.outputs.unbound }} \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
-            --output type=docker \
-            --tag local-build:${{ matrix.platform }} \
+            --load \
+            --tag local-build:${{ env.PLATFORM_PAIR }} \
             .
           
           echo "Build completed successfully"
@@ -147,7 +147,8 @@ jobs:
           echo "Pushing to registries"
           echo "Branch: ${{ github.ref }}"
           
-          # Re-tag and push to both registries
+          # Push the already-built image to both registries by digest
+          # This reuses cache and is much faster than rebuilding
           docker buildx build \
             --platform ${{ matrix.platform }} \
             --build-arg LC_VERSION=${{ needs.versions.outputs.lc }} \
