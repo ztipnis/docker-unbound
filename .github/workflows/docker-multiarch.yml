@@ -69,79 +69,8 @@ jobs:
           echo "  NGHTTP2=$NGHTTP2_VERSION (tag $NGHTTP2_TAG)"
           echo "  UNBOUND=$UNBOUND_VERSION (tag $UNBOUND_TAG)"
 
-  build:
-    needs: 
-      - versions
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-        - platform: linux/amd64
-          runner: ubuntu-latest
-        - platform: linux/arm64
-          runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        
-      - name: Prepare
-        run: |
-          platform=${{ matrix.platform }}
-          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
-
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ${{ env.REGISTRY_IMAGE }}
-            ${{ env.GHCR_IMAGE }}
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build image (no push)
-        id: build
-        run: |
-          echo "Building image for ${{ matrix.platform }}"
-          echo "Branch: ${{ github.ref }}"
-          
-          # Build image and load to local Docker (no push yet)
-          docker buildx build \
-            --platform ${{ matrix.platform }} \
-            --build-arg LC_VERSION=${{ needs.versions.outputs.lc }} \
-            --build-arg NGHTTP3_VERSION=${{ needs.versions.outputs.nghttp3 }} \
-            --build-arg NGTCP2_VERSION=${{ needs.versions.outputs.ngtcp2 }} \
-            --build-arg NGHTTP2_VERSION=${{ needs.versions.outputs.nghttp2 }} \
-            --build-arg UNBOUND_VERSION=${{ needs.versions.outputs.unbound }} \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
-            --load \
-            --tag local-build:${{ env.PLATFORM_PAIR }} \
-            .
-          
-          echo "Build completed successfully"
-
   push:
     needs:
-      - build
       - versions
     strategy:
       fail-fast: true
@@ -190,14 +119,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Push to registries by digest
+      - name: Build and push to registries by digest
         id: push
         run: |
-          echo "Pushing to registries"
+          echo "Building and pushing to registries"
           echo "Branch: ${{ github.ref }}"
           
-          # Push the already-built image to both registries by digest
-          # This reuses cache and is much faster than rebuilding
+          # Build and push to both registries by digest in a single build
           docker buildx build \
             --platform ${{ matrix.platform }} \
             --build-arg LC_VERSION=${{ needs.versions.outputs.lc }} \
@@ -206,6 +134,7 @@ jobs:
             --build-arg NGHTTP2_VERSION=${{ needs.versions.outputs.nghttp2 }} \
             --build-arg UNBOUND_VERSION=${{ needs.versions.outputs.unbound }} \
             --cache-from type=gha \
+            --cache-to type=gha,mode=max \
             --output type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true \
             --output type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true \
             --metadata-file /tmp/metadata.json \
