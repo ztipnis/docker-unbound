@@ -141,14 +141,31 @@ jobs:
 
       - name: Export digests
         run: |
+          set -euo pipefail
           mkdir -p ${{ runner.temp }}/digests/dockerhub
           mkdir -p ${{ runner.temp }}/digests/ghcr
-          # Introspect the pushed digest from the registry instead of using locally generated digest
-          # This ensures we capture the actual digest including SBOM/Provenance attestations
-          dockerhub_digest=$(docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}@${{ steps.build.outputs.digest }} --format '{{.Manifest.Digest}}')
-          ghcr_digest=$(docker buildx imagetools inspect ${{ env.GHCR_IMAGE }}@${{ steps.build.outputs.digest }} --format '{{.Manifest.Digest}}')
-          touch "${{ runner.temp }}/digests/dockerhub/${dockerhub_digest#sha256:}"
-          touch "${{ runner.temp }}/digests/ghcr/${ghcr_digest#sha256:}"
+          
+          # Introspect the pushed digest from the registry to verify it was pushed successfully
+          # This ensures we capture the actual digest from the registry, not just the locally computed one
+          digest="${{ steps.build.outputs.digest }}"
+          
+          # Verify the digest exists in Docker Hub registry
+          if ! docker buildx imagetools inspect "${{ env.REGISTRY_IMAGE }}@${digest}" >/dev/null 2>&1; then
+            echo "Error: Failed to find image in Docker Hub registry with digest ${digest}"
+            exit 1
+          fi
+          
+          # Verify the digest exists in GHCR registry  
+          if ! docker buildx imagetools inspect "${{ env.GHCR_IMAGE }}@${digest}" >/dev/null 2>&1; then
+            echo "Error: Failed to find image in GHCR registry with digest ${digest}"
+            exit 1
+          fi
+          
+          # Store the verified digest for both registries
+          touch "${{ runner.temp }}/digests/dockerhub/${digest#sha256:}"
+          touch "${{ runner.temp }}/digests/ghcr/${digest#sha256:}"
+          
+          echo "Successfully verified and stored digest: ${digest}"
 
       - name: Upload Docker Hub digest
         uses: actions/upload-artifact@v4
