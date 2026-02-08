@@ -149,17 +149,32 @@ jobs:
           # This ensures we capture the actual digest from the registry, not just the locally computed one
           digest="${{ steps.build.outputs.digest }}"
           
-          # Verify the digest exists in Docker Hub registry
-          if ! docker buildx imagetools inspect "${{ env.REGISTRY_IMAGE }}@${digest}" >/dev/null 2>&1; then
-            echo "Error: Failed to find image in Docker Hub registry with digest ${digest}"
-            exit 1
-          fi
+          # Function to verify digest in registry with retries
+          verify_digest() {
+            local registry_image="$1"
+            local max_attempts=3
+            local attempt=1
+            
+            while [ $attempt -le $max_attempts ]; do
+              if docker buildx imagetools inspect "${registry_image}@${digest}" >/dev/null 2>&1; then
+                echo "Successfully verified digest in ${registry_image} (attempt ${attempt})"
+                return 0
+              fi
+              
+              if [ $attempt -lt $max_attempts ]; then
+                echo "Failed to verify digest in ${registry_image} (attempt ${attempt}/${max_attempts}), retrying in 5 seconds..."
+                sleep 5
+              fi
+              attempt=$((attempt + 1))
+            done
+            
+            echo "Error: Failed to find image in ${registry_image} with digest ${digest} after ${max_attempts} attempts"
+            return 1
+          }
           
-          # Verify the digest exists in GHCR registry  
-          if ! docker buildx imagetools inspect "${{ env.GHCR_IMAGE }}@${digest}" >/dev/null 2>&1; then
-            echo "Error: Failed to find image in GHCR registry with digest ${digest}"
-            exit 1
-          fi
+          # Verify the digest exists in both registries with retry logic
+          verify_digest "${{ env.REGISTRY_IMAGE }}" || exit 1
+          verify_digest "${{ env.GHCR_IMAGE }}" || exit 1
           
           # Store the verified digest for both registries
           touch "${{ runner.temp }}/digests/dockerhub/${digest#sha256:}"
