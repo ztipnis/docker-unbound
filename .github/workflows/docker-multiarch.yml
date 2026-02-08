@@ -203,4 +203,5 @@ jobs:
           docker buildx imagetools create \
             --tag ${{ env.GHCR_IMAGE }}:${{ needs.versions.outputs.unbound }} \
             --tag ${{ env.GHCR_IMAGE }}:latest \
+            --tag ${{ env.GHCR_IMAGE }}:${{ steps.meta.outputs.version }} \
             ${{ env.REGISTRY_IMAGE }}:${{ steps.meta.outputs.version }}
