@@ -132,6 +132,9 @@ jobs:
             UNBOUND_VERSION=${{ needs.versions.outputs.unbound }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Disable provenance and SBOM to ensure consistent digests
+          provenance: false
+          sbom: false
           outputs: |
             type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
             type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
