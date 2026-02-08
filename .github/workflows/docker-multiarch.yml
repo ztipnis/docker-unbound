@@ -174,12 +174,14 @@ jobs:
             done
             
             echo "Error: Failed to discover manifest digest from registry after ${max_attempts} attempts"
+            echo "Possible causes: registry connectivity issues, authentication problems, or image not pushed successfully"
+            echo "Check that the image was pushed correctly and registry credentials are valid"
             return 1
           }
           
           # Discover actual manifest digests from both registries
-          dockerhub_digest=$(discover_digest "${{ env.REGISTRY_IMAGE }}")
-          ghcr_digest=$(discover_digest "${{ env.GHCR_IMAGE }}")
+          dockerhub_digest=$(discover_digest "${{ env.REGISTRY_IMAGE }}") || exit 1
+          ghcr_digest=$(discover_digest "${{ env.GHCR_IMAGE }}") || exit 1
           
           # Store the discovered manifest digests for the merge step
           touch "${{ runner.temp }}/digests/dockerhub/${dockerhub_digest#sha256:}"
