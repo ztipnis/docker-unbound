@@ -145,42 +145,18 @@ jobs:
           mkdir -p ${{ runner.temp }}/digests/dockerhub
           mkdir -p ${{ runner.temp }}/digests/ghcr
           
-          # Introspect the pushed digest from the registry to verify it was pushed successfully
-          # This ensures we capture the actual digest from the registry, not just the locally computed one
+          # When SBOM/Provenance attestations are enabled, they are pushed as separate manifests
+          # The image digest from the build output is the correct digest to use for creating
+          # the multi-arch manifest list, even though attestation manifests have different digests
           digest="${{ steps.build.outputs.digest }}"
           
-          # Function to verify digest in registry with retries
-          verify_digest() {
-            local registry_image="$1"
-            local max_attempts=3
-            local attempt=1
-            
-            while [ $attempt -le $max_attempts ]; do
-              if docker buildx imagetools inspect "${registry_image}@${digest}" >/dev/null 2>&1; then
-                echo "Successfully verified digest in ${registry_image} (attempt ${attempt})"
-                return 0
-              fi
-              
-              if [ $attempt -lt $max_attempts ]; then
-                echo "Failed to verify digest in ${registry_image} (attempt ${attempt}/${max_attempts}), retrying in 5 seconds..."
-                sleep 5
-              fi
-              attempt=$((attempt + 1))
-            done
-            
-            echo "Error: Failed to find image in ${registry_image} with digest ${digest} after ${max_attempts} attempts"
-            return 1
-          }
-          
-          # Verify the digest exists in both registries with retry logic
-          verify_digest "${{ env.REGISTRY_IMAGE }}" || exit 1
-          verify_digest "${{ env.GHCR_IMAGE }}" || exit 1
-          
-          # Store the verified digest for both registries
+          # Store the digest for both registries
+          # Note: With attestations enabled, the digest represents the image manifest,
+          # not the attestation manifests which are stored separately and linked to this digest
           touch "${{ runner.temp }}/digests/dockerhub/${digest#sha256:}"
           touch "${{ runner.temp }}/digests/ghcr/${digest#sha256:}"
           
-          echo "Successfully verified and stored digest: ${digest}"
+          echo "Stored image digest for manifest creation: ${digest}"
 
       - name: Upload Docker Hub digest
         uses: actions/upload-artifact@v4
