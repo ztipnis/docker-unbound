@@ -132,9 +132,9 @@ jobs:
             UNBOUND_VERSION=${{ needs.versions.outputs.unbound }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # Disable provenance and SBOM to ensure consistent digests
-          provenance: false
-          sbom: false
+          # Enable provenance and SBOM attestations
+          provenance: true
+          sbom: true
           outputs: |
             type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
             type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
@@ -143,10 +143,12 @@ jobs:
         run: |
           mkdir -p ${{ runner.temp }}/digests/dockerhub
           mkdir -p ${{ runner.temp }}/digests/ghcr
-          # The digest is the same for both registries (content-based hash)
-          digest="${{ steps.build.outputs.digest }}"
-          touch "${{ runner.temp }}/digests/dockerhub/${digest#sha256:}"
-          touch "${{ runner.temp }}/digests/ghcr/${digest#sha256:}"
+          # Introspect the pushed digest from the registry instead of using locally generated digest
+          # This ensures we capture the actual digest including SBOM/Provenance attestations
+          dockerhub_digest=$(docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}@${{ steps.build.outputs.digest }} --format '{{.Manifest.Digest}}')
+          ghcr_digest=$(docker buildx imagetools inspect ${{ env.GHCR_IMAGE }}@${{ steps.build.outputs.digest }} --format '{{.Manifest.Digest}}')
+          touch "${{ runner.temp }}/digests/dockerhub/${dockerhub_digest#sha256:}"
+          touch "${{ runner.temp }}/digests/ghcr/${ghcr_digest#sha256:}"
 
       - name: Upload Docker Hub digest
         uses: actions/upload-artifact@v4
