@@ -123,8 +123,8 @@ jobs:
             NGTCP2_VERSION=${{ needs.versions.outputs.ngtcp2 }}
             NGHTTP2_VERSION=${{ needs.versions.outputs.nghttp2 }}
             UNBOUND_VERSION=${{ needs.versions.outputs.unbound }}
-          cache-from: type=registry,ref=user/app:buildcache
-          cache-to: type=registry,ref=user/app:buildcache,mode=max
+          cache-from: type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache,mode=max
           provenance: mode=max
           sbom: true
           outputs: |
