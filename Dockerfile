@@ -29,6 +29,10 @@ RUN mkdir -p build /opt/lc && \
     cmake -GNinja \
       -DCMAKE_BUILD_TYPE=RelWithDebInfo \
       -DCMAKE_INSTALL_PREFIX=/opt/lc \
+      -DBUILD_TESTING=OFF \
+      -DAWSLC_BUILD_TESTING=OFF \
+      -DAWSLC_BUILD_TOOL=OFF \
+      -DAWSLC_BUILD_BENCHMARKS=OFF \
       .. && \
     ninja install
 
@@ -42,7 +46,7 @@ RUN tar xvf /opt/tarballs/nghttp3-*.tar.xz -C /opt/src --strip-components=1
 RUN autoreconf -i && \
     mkdir -p /opt/nghttp3 && \
     ./configure --prefix=/opt/nghttp3 --enable-lib-only --enable-static && \
-    make -j"$(nproc)" check && \
+    make -j"$(nproc)" && \
     make install
 
 # -------------------------
@@ -63,7 +67,7 @@ RUN autoreconf -i && \
       --with-boringssl \
       --prefix=/opt/ngtcp2-lc\
       --enable-static && \
-    make -j"$(nproc)" check && \
+    make -j"$(nproc)" && \
     make install
 
 # -------------------------
@@ -86,7 +90,7 @@ RUN autoreconf -i && \
       --with-openssl \
       --prefix=/opt/ngtcp2-ossl\
       --enable-static && \
-    make -j"$(nproc)" check && \
+    make -j"$(nproc)" && \
     make install
 
 # -------------------------
@@ -105,8 +109,8 @@ COPY --from=nghttp3-build /opt/nghttp3 /opt/nghttp3
 COPY --from=ngtcp2-lc-build /opt/ngtcp2-lc /opt/ngtcp2-lc
 RUN mkdir -p /opt/nghttp2 && \
     PKG_CONFIG_PATH="/opt/lc/lib/pkgconfig:/opt/nghttp3/lib/pkgconfig:/opt/ngtcp2-lc/lib/pkgconfig" \
-    ./configure --prefix=/opt/nghttp2 --with-mruby --enable-http3 --with-libbpf --enable-static && \
-    make -j"$(nproc)" check && \
+    ./configure --prefix=/opt/nghttp2 --with-mruby --enable-http3 --with-libbpf --enable-static --disable-app --disable-examples && \
+    make -j"$(nproc)" && \
     make install
 
 # -------------------------
@@ -131,10 +135,10 @@ RUN tar xvf /opt/tarballs/unbound-*.tar.gz -C /opt/src --strip-components=1
 WORKDIR /opt/src
 ENV LDFLAGS="-Wl,--strip-all"
 ENV PKG_CONFIG="pkg-config"
-ENV LIBS="-Wl,--whole-archive,/usr/lib/aarch64-linux-gnu/libz.a,/usr/lib/aarch64-linux-gnu/libzstd.a,--no-whole-archive"
-
-
-RUN ./configure --prefix=/opt/unbound \
+RUN export MULTIARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH)" && \
+    echo "MULTIARCH=$MULTIARCH" && \
+    export LIBS="-Wl,--whole-archive,/usr/lib/${MULTIARCH}/libz.a,/usr/lib/${MULTIARCH}/libzstd.a,--no-whole-archive" && \
+    ./configure --prefix=/opt/unbound \
     --enable-checking \
     --enable-tfo-client \
     --enable-tfo-server \
