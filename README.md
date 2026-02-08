@@ -26,9 +26,13 @@ docker run -d \
   -p 53:53/tcp \
   -p 853:853/tcp \
   -p 853:853/udp \
-  -v ./config:/config \
+  -v $(pwd)/config:/config \
   zatipnis/unbound:latest
 ```
+
+Port mappings:
+- `53/udp` and `53/tcp`: Standard DNS
+- `853/tcp` and `853/udp`: DNS-over-TLS (DoT) and DNS-over-QUIC (DoQ)
 
 ### Build Locally
 
