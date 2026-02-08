@@ -69,7 +69,7 @@ jobs:
           echo "  NGHTTP2=$NGHTTP2_VERSION (tag $NGHTTP2_TAG)"
           echo "  UNBOUND=$UNBOUND_VERSION (tag $UNBOUND_TAG)"
 
-  push:
+  build:
     needs:
       - versions
     strategy:
@@ -81,8 +81,6 @@ jobs:
         - platform: linux/arm64
           runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
-    # Use environment for approval control at job level
-    environment: ${{ github.ref == 'refs/heads/main' && 'push-main' || 'push-branch' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -119,13 +117,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push to registries by digest
-        id: push
+      - name: Build and push by digest (no tags)
+        id: build
         run: |
-          echo "Building and pushing to registries"
+          echo "Building and pushing to registries by digest"
           echo "Branch: ${{ github.ref }}"
           
-          # Build and push to both registries by digest in a single build
+          # Build and push to both registries by digest (no tags yet)
           docker buildx build \
             --platform ${{ matrix.platform }} \
             --build-arg LC_VERSION=${{ needs.versions.outputs.lc }} \
@@ -149,7 +147,7 @@ jobs:
         run: |
           mkdir -p ${{ runner.temp }}/digests/dockerhub
           mkdir -p ${{ runner.temp }}/digests/ghcr
-          digest="${{ steps.push.outputs.digest }}"
+          digest="${{ steps.build.outputs.digest }}"
           # Same digest for both registries since it's the same image content
           touch "${{ runner.temp }}/digests/dockerhub/${digest#sha256:}"
           touch "${{ runner.temp }}/digests/ghcr/${digest#sha256:}"
@@ -172,8 +170,10 @@ jobs:
 
   merge:
     runs-on: ubuntu-latest
+    # Use environment for approval control on tagging
+    environment: ${{ github.ref == 'refs/heads/main' && 'push-main' || 'push-branch' }}
     needs:
-      - push
+      - build
       - versions
     steps:
       - name: Download Docker Hub digests
