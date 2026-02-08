@@ -7,7 +7,70 @@ env:
   REGISTRY_IMAGE: ${{ vars.DOCKERHUB_USERNAME }}/unbound
 
 jobs:
+  versions:
+    name: Resolve upstream versions
+    runs-on: ubuntu-latest
+    outputs:
+      lc: ${{ steps.vers.outputs.lc }}
+      nghttp3: ${{ steps.vers.outputs.nghttp3 }}
+      ngtcp2: ${{ steps.vers.outputs.ngtcp2 }}
+      nghttp2: ${{ steps.vers.outputs.nghttp2 }}
+      unbound: ${{ steps.vers.outputs.unbound }}
+    steps:
+      - name: Fetch latest release tags from GitHub API
+        id: vers
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          gh_latest_tag() {
+            local repo="$1"
+            curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${repo}/releases/latest" \
+              | jq -r '.tag_name'
+          }
+
+          normalize() {
+            # strip common prefixes: v1.2.3 -> 1.2.3 ; release-1.2.3 -> 1.2.3 ; release/v1.2.3 -> 1.2.3
+            local t="$1"
+            t="${t#release/}"
+            t="${t#release-}"
+            t="${t#v}"
+            echo "$t"
+          }
+
+          LC_TAG="$(gh_latest_tag aws/aws-lc)"
+          NGHTTP3_TAG="$(gh_latest_tag ngtcp2/nghttp3)"
+          NGTCP2_TAG="$(gh_latest_tag ngtcp2/ngtcp2)"
+          NGHTTP2_TAG="$(gh_latest_tag nghttp2/nghttp2)"
+          UNBOUND_TAG="$(gh_latest_tag NLnetLabs/unbound)"
+
+          LC_VERSION="$(normalize "$LC_TAG")"
+          NGHTTP3_VERSION="$(normalize "$NGHTTP3_TAG")"
+          NGTCP2_VERSION="$(normalize "$NGTCP2_TAG")"
+          NGHTTP2_VERSION="$(normalize "$NGHTTP2_TAG")"
+          UNBOUND_VERSION="$(normalize "$UNBOUND_TAG")"
+
+          echo "lc=$LC_VERSION" >> "$GITHUB_OUTPUT"
+          echo "nghttp3=$NGHTTP3_VERSION" >> "$GITHUB_OUTPUT"
+          echo "ngtcp2=$NGTCP2_VERSION" >> "$GITHUB_OUTPUT"
+          echo "nghttp2=$NGHTTP2_VERSION" >> "$GITHUB_OUTPUT"
+          echo "unbound=$UNBOUND_VERSION" >> "$GITHUB_OUTPUT"
+
+          echo "Resolved versions:"
+          echo "  LC=$LC_VERSION (tag $LC_TAG)"
+          echo "  NGHTTP3=$NGHTTP3_VERSION (tag $NGHTTP3_TAG)"
+          echo "  NGTCP2=$NGTCP2_VERSION (tag $NGTCP2_TAG)"
+          echo "  NGHTTP2=$NGHTTP2_VERSION (tag $NGHTTP2_TAG)"
+          echo "  UNBOUND=$UNBOUND_VERSION (tag $UNBOUND_TAG)"
+
   build:
+    needs: 
+      - versions
     strategy:
       fail-fast: true
       matrix:
@@ -18,6 +81,9 @@ jobs:
           runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
       - name: Prepare
         run: |
           platform=${{ matrix.platform }}
@@ -45,9 +111,16 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
+          context: .
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ env.REGISTRY_IMAGE }}
+          build-args: |
+            LC_VERSION=${{ needs.versions.outputs.lc }}
+            NGHTTP3_VERSION=${{ needs.versions.outputs.nghttp3 }}
+            NGTCP2_VERSION=${{ needs.versions.outputs.ngtcp2 }}
+            NGHTTP2_VERSION=${{ needs.versions.outputs.nghttp2 }}
+            UNBOUND_VERSION=${{ needs.versions.outputs.unbound }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digest
@@ -68,6 +141,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - build
+      - versions
     steps:
       - name: Download digests
         uses: actions/download-artifact@v4
@@ -95,6 +169,8 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ needs.versions.outputs.unbound }}
+            type=raw,value=latest
 
       - name: Create manifest list and push
         working-directory: ${{ runner.temp }}/digests
