@@ -14,7 +14,7 @@ RUN mkdir -p /opt/src /opt/tarballs && \
       autoconf automake libtool pkg-config \
       ca-certificates curl xz-utils \
     && apt clean && rm -rf /var/lib/apt/lists/*
-ENV CC=clang CXX=clang++ CFLAGS="-O3" LDFLAGS="-Wl,--strip-all -static" PKG_CONFIG="pkg-config --static"
+ENV CC=clang CXX=clang++ CFLAGS="-O3 -fPIC" LDFLAGS="-Wl,--strip-all -static" PKG_CONFIG="pkg-config --static"
 WORKDIR /opt/src
 
 # -------------------------
@@ -162,6 +162,7 @@ RUN export MULTIARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH)" && \
     --with-run-dir=/config/unbound \
     --with-pidfile=/tmp/unbound.pid \
     --with-rootkey-file=/config/unbound/root.key\
+    --disable-shared\
     --enable-fully-static && \
     make -j"$(nproc)" && \
     make install && \
