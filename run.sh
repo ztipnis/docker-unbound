@@ -1,6 +1,7 @@
 #!/bin/sh
 echo "Starting Unbound..."
 if [ ! -f "/config/unbound/unbound.conf" ]; then
+  mkdir -p /config/unbound
   cp /opt/unbound/etc/unbound/unbound.conf /config/unbound/unbound.conf
 fi
 /opt/unbound/sbin/unbound-control-setup -d /config/unbound
