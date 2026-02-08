@@ -119,29 +119,22 @@ jobs:
 
       - name: Build and push by digest (no tags)
         id: build
-        run: |
-          echo "Building and pushing to registries by digest"
-          echo "Branch: ${{ github.ref }}"
-          
-          # Build and push to both registries by digest (no tags yet)
-          docker buildx build \
-            --platform ${{ matrix.platform }} \
-            --build-arg LC_VERSION=${{ needs.versions.outputs.lc }} \
-            --build-arg NGHTTP3_VERSION=${{ needs.versions.outputs.nghttp3 }} \
-            --build-arg NGTCP2_VERSION=${{ needs.versions.outputs.ngtcp2 }} \
-            --build-arg NGHTTP2_VERSION=${{ needs.versions.outputs.nghttp2 }} \
-            --build-arg UNBOUND_VERSION=${{ needs.versions.outputs.unbound }} \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
-            --output type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true \
-            --output type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true \
-            --metadata-file /tmp/metadata.json \
-            .
-          
-          # Extract the digest (same for both registries since it's the same image)
-          digest=$(jq -r '."containerimage.digest"' /tmp/metadata.json)
-          echo "digest=$digest" >> $GITHUB_OUTPUT
-          echo "Digest: $digest"
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            LC_VERSION=${{ needs.versions.outputs.lc }}
+            NGHTTP3_VERSION=${{ needs.versions.outputs.nghttp3 }}
+            NGTCP2_VERSION=${{ needs.versions.outputs.ngtcp2 }}
+            NGHTTP2_VERSION=${{ needs.versions.outputs.nghttp2 }}
+            UNBOUND_VERSION=${{ needs.versions.outputs.unbound }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          outputs: |
+            type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+            type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digests
         run: |
